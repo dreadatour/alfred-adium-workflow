@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>ru.dreadatour.alfred.adium</string>
+	<key>connections</key>
+	<dict>
+		<key>6D25AA6D-2CE6-48A4-8593-BB2672C58AB2</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>9076915B-60B7-4BF2-A2C8-402104C87493</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+			</dict>
+		</array>
+		<key>9076915B-60B7-4BF2-A2C8-402104C87493</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>F09F5B33-8DB1-4224-945E-1AA1AD137258</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>Vladimir Rudnyh</string>
+	<key>description</key>
+	<string>Chat with adium contact</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Adium</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>action</key>
+				<integer>0</integer>
+				<key>argument</key>
+				<integer>0</integer>
+				<key>hotkey</key>
+				<integer>0</integer>
+				<key>hotmod</key>
+				<integer>1310720</integer>
+				<key>hotstring</key>
+				<string>A</string>
+				<key>leftcursor</key>
+				<false/>
+				<key>modsmode</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.hotkey</string>
+			<key>uid</key>
+			<string>6D25AA6D-2CE6-48A4-8593-BB2672C58AB2</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>applescript</key>
+				<string>on alfred_script(account_user)	set AppleScript's text item delimiters to {"##"}	set user_info to account_user's text items	set AppleScript's text item delimiters to {""}		set user_account to item 1 of user_info	set user_name to item 2 of user_info		tell application "Adium"		set user to contact user_name of account user_account				set is_chat_found to false		repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					set is_chat_found to true					exit repeat				end if			end repeat			if is_chat_found then exit repeat		end repeat				if not is_chat_found then			if not (exists (first chat window)) then				tell account user_account to (make new chat with contacts {contact user_name} with new chat window)			else				set existing_window to first chat window				set existing_chat to last chat of existing_window				tell account user_account to (make new chat with contacts {contact user_name} at after existing_chat)			end if		end if				repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					tell chat_opened to become active					exit repeat				end if			end repeat		end repeat				activate	end tell	end alfred_script</string>
+				<key>cachescript</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.applescript</string>
+			<key>uid</key>
+			<string>F09F5B33-8DB1-4224-945E-1AA1AD137258</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>4</integer>
+				<key>keyword</key>
+				<string>chat</string>
+				<key>runningsubtext</key>
+				<string>Fetching contact list...</string>
+				<key>script</key>
+				<string>set query to "{query}" as text
+set res to "&lt;?xml version='1.0'?&gt;&lt;items&gt;"
+
+on pluralize(cnt, str1, str2)
+	set subject to str2
+	if cnt = 1 then set subject to str1
+	set message to (cnt as text) &amp; " " &amp; subject
+	return message
+end pluralize
+
+tell application "System Events" to set is_adium_running to (name of processes) contains "Adium"
+if is_adium_running then
+	set no_users_found to true
+	set no_users_found_msg to "There is no users found"
+	
+	tell application "Adium"
+		set users_list to {}
+		set results_count to 0
+		
+		set unread_messages to {{name of first contact, unread message count}} of (every chat whose unread message count is not 0)
+		log unread_messages
+		
+		if length of query &lt; 3 then
+			set no_users_found_msg to "There is no active chats. Start typing to find users."
+			
+			if length of query = 0 then
+				repeat with user in every contact of every chat of every chat window
+					set results_count to results_count + 1
+					if results_count &gt; 10 then exit repeat
+					set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
+				end repeat
+			else
+				repeat with user in (every contact of every chat of every chat window whose (name contains query or display name contains query))
+					set results_count to results_count + 1
+					if results_count &gt; 10 then exit repeat
+					set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
+				end repeat
+			end if
+		else
+			repeat with user in (every contact whose (name contains query or display name contains query))
+				set results_count to results_count + 1
+				if results_count &gt; 10 then exit repeat
+				set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
+			end repeat
+		end if
+		
+		repeat with user in users_list
+			set no_users_found to false
+			
+			set user_name to item 1 of user as text
+			set user_nickname to item 2 of user as text
+			set user_service to item 3 of user as text
+			set user_status to item 4 of user as text
+			
+			set unread_messages_count to ""
+			repeat with unread in unread_messages
+				if item 1 of unread contains user_name then
+					set unread_count to item 2 of unread as number
+					if unread_count is greater than 0 then
+						set unread_messages_count to " (" &amp; my pluralize(unread_count, "message", "messages") &amp; ")"
+					end if
+				end if
+			end repeat
+			
+			set res to res &amp; "
+&lt;item uid=\"" &amp; user_service &amp; "##" &amp; user_name &amp; "\" arg=\"" &amp; user_service &amp; "##" &amp; user_name &amp; "\" valid=\"yes\"&gt;
+	&lt;title&gt;" &amp; user_nickname &amp; unread_messages_count &amp; "&lt;/title&gt;
+	&lt;subtitle&gt;" &amp; user_name &amp; " (" &amp; user_service &amp; ")&lt;/subtitle&gt;"
+			if unread_messages_count is not "" then
+				set res to res &amp; "&lt;icon&gt;status_unread.png&lt;/icon&gt;"
+			else if user_status = "offline" then
+				set res to res &amp; "&lt;icon&gt;status_offline.png&lt;/icon&gt;"
+			else if user_status = "away" then
+				set res to res &amp; "&lt;icon&gt;status_away.png&lt;/icon&gt;"
+			else if user_status = "invisible" then
+				set res to res &amp; "&lt;icon&gt;status_invisible.png&lt;/icon&gt;"
+			else
+				set res to res &amp; "&lt;icon&gt;status_available.png&lt;/icon&gt;"
+			end if
+			set res to res &amp; "&lt;/item&gt;"
+		end repeat
+	end tell
+	
+	if no_users_found then
+		set res to res &amp; "
+&lt;item uid=\"empty\" arg=\"empty\" valid=\"no\"&gt;&lt;title&gt;" &amp; no_users_found_msg &amp; "&lt;/title&gt;&lt;/item&gt;"
+	end if
+else
+	set res to res &amp; "
+&lt;item uid=\"empty\" arg=\"empty\" valid=\"no\"&gt;&lt;title&gt;Adium is not running.&lt;/title&gt;&lt;/item&gt;"
+end if
+
+set res to res &amp; "
+&lt;/items&gt;"
+res
+</string>
+				<key>subtext</key>
+				<string>Search contacts by name</string>
+				<key>title</key>
+				<string>Start a chat</string>
+				<key>type</key>
+				<integer>6</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>9076915B-60B7-4BF2-A2C8-402104C87493</string>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string></string>
+	<key>uidata</key>
+	<dict>
+		<key>6D25AA6D-2CE6-48A4-8593-BB2672C58AB2</key>
+		<dict>
+			<key>ypos</key>
+			<real>10</real>
+		</dict>
+		<key>9076915B-60B7-4BF2-A2C8-402104C87493</key>
+		<dict>
+			<key>ypos</key>
+			<real>10</real>
+		</dict>
+		<key>F09F5B33-8DB1-4224-945E-1AA1AD137258</key>
+		<dict>
+			<key>ypos</key>
+			<real>10</real>
+		</dict>
+	</dict>
+	<key>webaddress</key>
+	<string>http://itcontest.ru</string>
+</dict>
+</plist>
