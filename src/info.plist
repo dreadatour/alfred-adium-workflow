@@ -27,6 +27,14 @@
 				<key>modifiersubtext</key>
 				<string></string>
 			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>3CD9635A-7985-45E5-8F49-20E5972621C0</string>
+				<key>modifiers</key>
+				<integer>524288</integer>
+				<key>modifiersubtext</key>
+				<string>Copy email to clipboard</string>
+			</dict>
 		</array>
 	</dict>
 	<key>createdby</key>
@@ -47,11 +55,11 @@
 				<key>argument</key>
 				<integer>0</integer>
 				<key>hotkey</key>
-				<integer>0</integer>
+				<integer>8</integer>
 				<key>hotmod</key>
 				<integer>1310720</integer>
 				<key>hotstring</key>
-				<string>A</string>
+				<string>C</string>
 				<key>leftcursor</key>
 				<false/>
 				<key>modsmode</key>
@@ -61,19 +69,6 @@
 			<string>alfred.workflow.trigger.hotkey</string>
 			<key>uid</key>
 			<string>6D25AA6D-2CE6-48A4-8593-BB2672C58AB2</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>applescript</key>
-				<string>on alfred_script(account_user)	set AppleScript's text item delimiters to {"##"}	set user_info to account_user's text items	set AppleScript's text item delimiters to {""}		set user_account to item 1 of user_info	set user_name to item 2 of user_info		tell application "Adium"		set user to contact user_name of account user_account				set is_chat_found to false		repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					set is_chat_found to true					exit repeat				end if			end repeat			if is_chat_found then exit repeat		end repeat				if not is_chat_found then			if not (exists (first chat window)) then				tell account user_account to (make new chat with contacts {contact user_name} with new chat window)			else				set existing_window to first chat window				set existing_chat to last chat of existing_window				tell account user_account to (make new chat with contacts {contact user_name} at after existing_chat)			end if		end if				repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					tell chat_opened to become active					exit repeat				end if			end repeat		end repeat				activate	end tell	end alfred_script</string>
-				<key>cachescript</key>
-				<false/>
-			</dict>
-			<key>type</key>
-			<string>alfred.workflow.action.applescript</string>
-			<key>uid</key>
-			<string>F09F5B33-8DB1-4224-945E-1AA1AD137258</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -97,65 +92,111 @@ on pluralize(cnt, str1, str2)
 	return message
 end pluralize
 
+on get_user_unread(unread_messages, user_name)
+	repeat with unread in unread_messages
+		if item 1 of unread contains user_name then return item 2 of unread as number
+	end repeat
+	return 0
+end get_user_unread
+
 tell application "System Events" to set is_adium_running to (name of processes) contains "Adium"
 if is_adium_running then
 	set no_users_found to true
 	set no_users_found_msg to "There is no users found"
-	
+
 	tell application "Adium"
-		set users_list to {}
-		set results_count to 0
-		
 		set unread_messages to {{name of first contact, unread message count}} of (every chat whose unread message count is not 0)
-		log unread_messages
-		
+
+		set users_unread to {}
+		set users_online to {}
+		set users_offline to {}
+
 		if length of query &lt; 3 then
 			set no_users_found_msg to "There is no active chats. Start typing to find users."
-			
+
 			if length of query = 0 then
 				repeat with user in every contact of every chat of every chat window
-					set results_count to results_count + 1
-					if results_count &gt; 10 then exit repeat
-					set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
+					set user_unread to my get_user_unread(unread_messages, name of user)
+					set user_status to status type of user as text
+					set user_data to {{name of user as text, display name of user as text, name of account of user as text, user_status, user_unread}}
+					if user_unread is greater than 0 then
+						set users_unread to users_unread &amp; user_data
+					else if user_status = "offline" then
+						set users_offline to users_offline &amp; user_data
+					else
+						set users_online to users_online &amp; user_data
+					end if
 				end repeat
 			else
 				repeat with user in (every contact of every chat of every chat window whose (name contains query or display name contains query))
-					set results_count to results_count + 1
-					if results_count &gt; 10 then exit repeat
-					set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
+					set user_unread to my get_user_unread(unread_messages, name of user)
+					set user_status to status type of user as text
+					set user_data to {{name of user as text, display name of user as text, name of account of user as text, user_status, user_unread}}
+					if user_unread is greater than 0 then
+						set users_unread to users_unread &amp; user_data
+					else if user_status = "offline" then
+						set users_offline to users_offline &amp; user_data
+					else
+						set users_online to users_online &amp; user_data
+					end if
 				end repeat
 			end if
 		else
 			repeat with user in (every contact whose (name contains query or display name contains query))
-				set results_count to results_count + 1
-				if results_count &gt; 10 then exit repeat
-				set users_list to users_list &amp; {{name of user, display name of user, name of account of user, status type of user}}
-			end repeat
-		end if
-		
-		repeat with user in users_list
-			set no_users_found to false
-			
-			set user_name to item 1 of user as text
-			set user_nickname to item 2 of user as text
-			set user_service to item 3 of user as text
-			set user_status to item 4 of user as text
-			
-			set unread_messages_count to ""
-			repeat with unread in unread_messages
-				if item 1 of unread contains user_name then
-					set unread_count to item 2 of unread as number
-					if unread_count is greater than 0 then
-						set unread_messages_count to " (" &amp; my pluralize(unread_count, "message", "messages") &amp; ")"
-					end if
+				set user_unread to my get_user_unread(unread_messages, name of user)
+				set user_status to status type of user as text
+				set user_data to {{name of user as text, display name of user as text, name of account of user as text, user_status, user_unread}}
+				if user_unread is greater than 0 then
+					set users_unread to users_unread &amp; user_data
+				else if user_status = "offline" then
+					set users_offline to users_offline &amp; user_data
+				else
+					set users_online to users_online &amp; user_data
 				end if
 			end repeat
-			
+		end if
+
+		set users_list to {}
+		set results_count to 0
+
+		repeat with user in users_unread
+			set results_count to results_count + 1
+			if results_count &gt; 10 then exit repeat
+			set users_list to users_list &amp; {user}
+		end repeat
+
+		repeat with user in users_online
+			set results_count to results_count + 1
+			if results_count &gt; 10 then exit repeat
+			set users_list to users_list &amp; {user}
+		end repeat
+
+		repeat with user in users_offline
+			set results_count to results_count + 1
+			if results_count &gt; 10 then exit repeat
+			set users_list to users_list &amp; {user}
+		end repeat
+
+		repeat with user in users_list
+			set no_users_found to false
+
+			set user_name to item 1 of user
+			set user_nickname to item 2 of user
+			set user_service to item 3 of user
+			set user_status to item 4 of user
+			set user_unread_count to item 5 of user
+
+			if user_unread_count is greater than 0 then
+				set unread_messages_msg to " (" &amp; my pluralize(user_unread_count, "message", "messages") &amp; ")"
+			else
+				set unread_messages_msg to ""
+			end if
+
 			set res to res &amp; "
 &lt;item uid=\"" &amp; user_service &amp; "##" &amp; user_name &amp; "\" arg=\"" &amp; user_service &amp; "##" &amp; user_name &amp; "\" valid=\"yes\"&gt;
-	&lt;title&gt;" &amp; user_nickname &amp; unread_messages_count &amp; "&lt;/title&gt;
+	&lt;title&gt;" &amp; user_nickname &amp; unread_messages_msg &amp; "&lt;/title&gt;
 	&lt;subtitle&gt;" &amp; user_name &amp; " (" &amp; user_service &amp; ")&lt;/subtitle&gt;"
-			if unread_messages_count is not "" then
+			if user_unread_count is greater than 0 then
 				set res to res &amp; "&lt;icon&gt;status_unread.png&lt;/icon&gt;"
 			else if user_status = "offline" then
 				set res to res &amp; "&lt;icon&gt;status_offline.png&lt;/icon&gt;"
@@ -169,7 +210,7 @@ if is_adium_running then
 			set res to res &amp; "&lt;/item&gt;"
 		end repeat
 	end tell
-	
+
 	if no_users_found then
 		set res to res &amp; "
 &lt;item uid=\"empty\" arg=\"empty\" valid=\"no\"&gt;&lt;title&gt;" &amp; no_users_found_msg &amp; "&lt;/title&gt;&lt;/item&gt;"
@@ -197,11 +238,44 @@ res
 			<key>uid</key>
 			<string>9076915B-60B7-4BF2-A2C8-402104C87493</string>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>applescript</key>
+				<string>on alfred_script(account_user)	set AppleScript's text item delimiters to {"##"}	set user_info to account_user's text items	set AppleScript's text item delimiters to {""}		set user_account to item 1 of user_info	set user_name to item 2 of user_info		tell application "Adium"		set user to contact user_name of account user_account				set is_chat_found to false		repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					set is_chat_found to true					exit repeat				end if			end repeat			if is_chat_found then exit repeat		end repeat				if not is_chat_found then			if not (exists (first chat window)) then				tell account user_account to (make new chat with contacts {contact user_name} with new chat window)			else				set existing_window to first chat window				set existing_chat to last chat of existing_window				tell account user_account to (make new chat with contacts {contact user_name} at after existing_chat)			end if		end if				repeat with chat_opened in every chat of every chat window			repeat with chat_contact in chat_opened				if user_name = name of chat_contact then					tell chat_opened to become active					exit repeat				end if			end repeat		end repeat				activate	end tell	end alfred_script</string>
+				<key>cachescript</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.applescript</string>
+			<key>uid</key>
+			<string>F09F5B33-8DB1-4224-945E-1AA1AD137258</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>applescript</key>
+				<string>on alfred_script(account_user)
+	set AppleScript's text item delimiters to {"##"}	set user_info to account_user's text items	set AppleScript's text item delimiters to {""}	
+	set the clipboard to item 2 of user_infoend alfred_script</string>
+				<key>cachescript</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.applescript</string>
+			<key>uid</key>
+			<string>3CD9635A-7985-45E5-8F49-20E5972621C0</string>
+		</dict>
 	</array>
 	<key>readme</key>
 	<string></string>
 	<key>uidata</key>
 	<dict>
+		<key>3CD9635A-7985-45E5-8F49-20E5972621C0</key>
+		<dict>
+			<key>ypos</key>
+			<real>130</real>
+		</dict>
 		<key>6D25AA6D-2CE6-48A4-8593-BB2672C58AB2</key>
 		<dict>
 			<key>ypos</key>
